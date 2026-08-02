@@ -86,6 +86,18 @@ h2 { margin-bottom: 0; font-size: 20px; letter-spacing: -0.02em; }
   margin-top: 22px;
 }
 
+.offline-status {
+  width: fit-content;
+  margin: 12px 0 0;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+.offline-status.is-preparing { background: #fff5dd; color: #8a6412; }
+.offline-status.is-ready { background: #e6f7ef; color: #16734b; }
+.offline-status.is-error { background: #fff0f0; color: #a43d3d; }
+
 .week-picker button, .week-picker select {
   height: 48px;
   border: 0;

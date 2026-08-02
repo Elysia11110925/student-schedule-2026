@@ -197,6 +197,32 @@ installDialog.addEventListener("click", (event) => {
 
 render(Number(weekSelect.value));
 
+const offlineStatus = $("#offlineStatus");
+
+function setOfflineStatus(text, state) {
+  offlineStatus.textContent = text;
+  offlineStatus.className = `offline-status ${state}`;
+}
+
 if ("serviceWorker" in navigator) {
-  window.addEventListener("load", () => navigator.serviceWorker.register("service-worker.js"));
+  window.addEventListener("load", async () => {
+    try {
+      await navigator.serviceWorker.register("service-worker.js", { scope: "./" });
+      await navigator.serviceWorker.ready;
+
+      if (!navigator.serviceWorker.controller) {
+        await Promise.race([
+          new Promise((resolve) => navigator.serviceWorker.addEventListener("controllerchange", resolve, { once: true })),
+          new Promise((resolve) => window.setTimeout(resolve, 3000)),
+        ]);
+      }
+
+      setOfflineStatus("✓ 离线可用", "is-ready");
+    } catch (error) {
+      console.error("离线缓存准备失败", error);
+      setOfflineStatus("离线缓存未完成，请联网刷新", "is-error");
+    }
+  });
+} else {
+  setOfflineStatus("此浏览器不支持离线使用", "is-error");
 }
