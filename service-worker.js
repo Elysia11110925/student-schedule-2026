@@ -1,14 +1,13 @@
-const CACHE_NAME = "student-schedule-v4";
+const CACHE_NAME = "student-schedule-v5";
 const ASSETS = [
   "./",
   "./index.html",
   "./styles.css",
   "./app.js",
   "./manifest.webmanifest",
-  "./icons/icon.svg",
-  "./icons/icon-180.png",
-  "./icons/icon-192.png",
-  "./icons/icon-512.png"
+  "./icons/icon-portrait-v1-180.png",
+  "./icons/icon-portrait-v1-192.png",
+  "./icons/icon-portrait-v1-512.png"
 ];
 
 self.addEventListener("install", (event) => {
