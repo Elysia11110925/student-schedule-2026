@@ -43,14 +43,12 @@ const floatingCourses = [
 
 const weekdays = ["星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日"];
 const shortWeekdays = ["一", "二", "三", "四", "五", "六", "日"];
-const colors = ["#5b5bd6", "#e86a92", "#168f8c", "#e68a2e", "#4d79d8", "#8b5fc7", "#d65f50"];
 
 const $ = (selector) => document.querySelector(selector);
-const weekSelect = $("#weekSelect");
 const schedule = $("#schedule");
-const dayNav = $("#dayNav");
-const statusCard = $("#statusCard");
 const floatingCourseList = $("#floatingCourseList");
+const weekSelect = $("#weekSelect");
+const weekDialog = $("#weekDialog");
 
 const atMidnight = (date) => new Date(date.getFullYear(), date.getMonth(), date.getDate());
 const addDays = (date, days) => new Date(date.getFullYear(), date.getMonth(), date.getDate() + days);
@@ -68,43 +66,94 @@ function calendarWeek(date = new Date()) {
   return Math.floor(diffDays / 7) + 1;
 }
 
-function initialWeek() {
-  const current = calendarWeek();
-  const saved = Number(localStorage.getItem("schedule-week"));
-  if (current >= 1 && current <= TOTAL_WEEKS) return current;
-  if (saved >= 1 && saved <= TOTAL_WEEKS) return saved;
-  return current < 1 ? 1 : TOTAL_WEEKS;
+function weekStart(week) {
+  return addDays(SEMESTER_START, (week - 1) * 7);
 }
 
-function weekStart(week) { return addDays(SEMESTER_START, (week - 1) * 7); }
+function dayNumber(date) {
+  return ((date.getDay() + 6) % 7) + 1;
+}
 
-function createCourseCard(course) {
+function initialSelection() {
+  const now = new Date();
+  const currentWeek = calendarWeek(now);
+  if (currentWeek >= 1 && currentWeek <= TOTAL_WEEKS) {
+    return { week: currentWeek, day: dayNumber(now) };
+  }
+
+  const savedWeek = Number(localStorage.getItem("schedule-week"));
+  const savedDay = Number(localStorage.getItem("schedule-day"));
+  return {
+    week: savedWeek >= 1 && savedWeek <= TOTAL_WEEKS ? savedWeek : (currentWeek < 1 ? 1 : TOTAL_WEEKS),
+    day: savedDay >= 1 && savedDay <= 7 ? savedDay : 1,
+  };
+}
+
+const initial = initialSelection();
+let selectedWeek = initial.week;
+let selectedDay = initial.day;
+let menuWeek = selectedWeek;
+
+function selectedDate() {
+  return addDays(weekStart(selectedWeek), selectedDay - 1);
+}
+
+function coursesFor(week, day) {
+  return courses
+    .filter((course) => course.day === day && week >= course.from && week <= course.to)
+    .sort((a, b) => a.period - b.period);
+}
+
+function dateAtTime(date, time) {
+  const [hours, minutes] = time.split(":").map(Number);
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate(), hours, minutes);
+}
+
+function timingState(course, date, now = new Date()) {
+  const [startText, endText] = periods[course.period].time.split("–");
+  const today = atMidnight(now);
+  const target = atMidnight(date);
+  if (target < today) return "done";
+  if (target > today) return "upcoming";
+  if (now >= dateAtTime(date, endText)) return "done";
+  if (now >= dateAtTime(date, startText)) return "active";
+  return "upcoming";
+}
+
+function stateLabel(state) {
+  if (state === "done") return "已结束";
+  if (state === "active") return "进行中";
+  return "待上课";
+}
+
+function createCourseTask(course, date) {
   const period = periods[course.period];
-  const color = colors[Math.abs(course.name.split("").reduce((sum, char) => sum + char.charCodeAt(0), 0)) % colors.length];
+  const state = timingState(course, date);
   const article = document.createElement("article");
-  article.className = "course-card";
-  article.style.setProperty("--course-color", color);
+  article.className = `course-task is-${state}`;
   article.innerHTML = `
-    <div class="course-time"><strong>${period.label}</strong>${period.time}</div>
-    <div class="course-info">
+    <div class="task-check" aria-hidden="true">${state === "done" ? "✓" : ""}</div>
+    <div class="task-content">
+      <div class="task-topline">
+        <time>${period.time}</time>
+        <span class="task-state">${stateLabel(state)}</span>
+      </div>
       <h3>${course.name}</h3>
-      <div class="course-meta">
-        <span>👤 ${course.teacher}</span>
-        <span class="room">⌖ ${course.room}</span>
-        <span>第${course.from}–${course.to}周</span>
+      <p class="task-period">${period.label}</p>
+      <div class="task-meta">
+        <span>${course.teacher}</span>
+        <span class="task-room">${course.room}</span>
       </div>
     </div>`;
   return article;
 }
 
-function renderStatus(selectedWeek) {
-  const nowWeek = calendarWeek();
-  let text = "";
-  if (nowWeek < 1) text = `距离开学还有 ${Math.ceil((SEMESTER_START - atMidnight(new Date())) / 86400000)} 天，当前先展示第 1 周。`;
-  else if (nowWeek > TOTAL_WEEKS) text = "本学期课程周已经结束，你仍可切换查看历史周次。";
-  else if (selectedWeek !== nowWeek) text = `当前是第 ${nowWeek} 周，正在查看第 ${selectedWeek} 周。`;
-  statusCard.textContent = text;
-  statusCard.hidden = !text;
+function relativeDayLabel(date) {
+  const offset = Math.round((atMidnight(date) - atMidnight(new Date())) / 86400000);
+  if (offset === 0) return "今天";
+  if (offset === -1) return "昨天";
+  if (offset === 1) return "明天";
+  return `第 ${selectedWeek} 周`;
 }
 
 function renderFloatingCourses(week) {
@@ -112,61 +161,94 @@ function renderFloatingCourses(week) {
   const visible = floatingCourses.filter((course) => !course.from || (week >= course.from && week <= course.to));
   if (!visible.length) {
     const empty = document.createElement("div");
-    empty.className = "empty-day";
-    empty.textContent = "本周没有不排时间地点的课程";
+    empty.className = "empty-card";
+    empty.textContent = "本周没有自主安排课程";
     floatingCourseList.append(empty);
     return;
   }
   visible.forEach((course) => {
     const card = document.createElement("article");
     card.className = "floating-card";
-    card.innerHTML = `<h3>${course.name}</h3><p>${course.weeks} · ${course.note}</p>`;
+    card.innerHTML = `<div class="flex-dot"></div><div><h3>${course.name}</h3><p>${course.weeks} · ${course.note}</p></div>`;
     floatingCourseList.append(card);
   });
 }
 
-function render(week) {
-  localStorage.setItem("schedule-week", String(week));
-  const start = weekStart(week);
+function updateDayControls() {
+  $("#previousDay").disabled = selectedWeek === 1 && selectedDay === 1;
+  $("#nextDay").disabled = selectedWeek === TOTAL_WEEKS && selectedDay === 7;
+}
+
+function renderDaily() {
+  localStorage.setItem("schedule-week", String(selectedWeek));
+  localStorage.setItem("schedule-day", String(selectedDay));
+
+  const date = selectedDate();
+  const dailyCourses = coursesFor(selectedWeek, selectedDay);
+  const completed = dailyCourses.filter((course) => timingState(course, date) === "done").length;
+  const active = dailyCourses.some((course) => timingState(course, date) === "active");
+
+  $("#dayDate").textContent = `${date.getFullYear()}年 ${formatDate(date)} · ${relativeDayLabel(date)}`;
+  $("#dayTitle").textContent = weekdays[selectedDay - 1];
+  $("#dayContext").textContent = active ? "现在有课程正在进行" : dailyCourses.length ? "按时间自动更新完成状态" : "给自己留一点自由时间";
+  $("#progressValue").textContent = `${completed}/${dailyCourses.length}`;
+  $("#progressBar").style.width = `${dailyCourses.length ? (completed / dailyCourses.length) * 100 : 0}%`;
+  $("#courseCount").textContent = `${dailyCourses.length} 节课`;
+
+  schedule.replaceChildren();
+  if (dailyCourses.length) {
+    dailyCourses.forEach((course) => schedule.append(createCourseTask(course, date)));
+  } else {
+    const empty = document.createElement("div");
+    empty.className = "empty-card";
+    empty.innerHTML = `<span>○</span><h3>今天没有课</h3><p>可以休息，也可以从周课表里查看其他日期。</p>`;
+    schedule.append(empty);
+  }
+
+  renderFloatingCourses(selectedWeek);
+  updateDayControls();
+}
+
+function renderWeekMenu() {
+  weekSelect.value = String(menuWeek);
+  const start = weekStart(menuWeek);
   const end = addDays(start, 6);
   $("#weekDates").textContent = `${start.getFullYear()}年 ${formatDate(start)} – ${formatDate(end)}`;
-  renderStatus(week);
-  schedule.replaceChildren();
-  dayNav.replaceChildren();
+  const list = $("#weekMenuDays");
+  list.replaceChildren();
 
   weekdays.forEach((weekday, index) => {
     const day = index + 1;
     const date = addDays(start, index);
-    const isToday = sameDay(date, new Date());
-
-    const chip = document.createElement("button");
-    chip.type = "button";
-    chip.className = `day-chip${isToday ? " today" : ""}`;
-    chip.innerHTML = `<span>周${shortWeekdays[index]}</span><strong>${date.getDate()}</strong>`;
-    chip.addEventListener("click", () => document.querySelector(`#day-${day}`).scrollIntoView({ behavior: "smooth" }));
-    dayNav.append(chip);
-
-    const section = document.createElement("section");
-    section.id = `day-${day}`;
-    section.className = `day-section${isToday ? " is-today" : ""}`;
-    section.innerHTML = `<div class="day-header"><h2>${weekday}</h2><time datetime="${isoDate(date)}">${formatDate(date)}</time></div>`;
-    const list = document.createElement("div");
-    list.className = "course-list";
-    const dailyCourses = courses
-      .filter((course) => course.day === day && week >= course.from && week <= course.to)
-      .sort((a, b) => a.period - b.period);
-    if (dailyCourses.length) dailyCourses.forEach((course) => list.append(createCourseCard(course)));
-    else {
-      const empty = document.createElement("div");
-      empty.className = "empty-day";
-      empty.textContent = "这一天没有课程";
-      list.append(empty);
-    }
-    section.append(list);
-    schedule.append(section);
+    const dailyCourses = coursesFor(menuWeek, day);
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = `week-day-option${menuWeek === selectedWeek && day === selectedDay ? " is-selected" : ""}`;
+    const summary = dailyCourses.length ? dailyCourses.map((course) => course.name).join(" · ") : "无课程";
+    button.innerHTML = `
+      <span class="week-day-date"><small>周${shortWeekdays[index]}</small><strong>${date.getDate()}</strong></span>
+      <span class="week-day-summary"><strong>${weekday}</strong><small>${summary}</small></span>
+      <span class="week-day-count">${dailyCourses.length}</span>`;
+    button.addEventListener("click", () => {
+      selectedWeek = menuWeek;
+      selectedDay = day;
+      renderDaily();
+      weekDialog.close();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    });
+    list.append(button);
   });
 
-  renderFloatingCourses(week);
+  $("#previousWeek").disabled = menuWeek === 1;
+  $("#nextWeek").disabled = menuWeek === TOTAL_WEEKS;
+}
+
+function goAdjacentDay(offset) {
+  let absoluteDay = (selectedWeek - 1) * 7 + (selectedDay - 1) + offset;
+  absoluteDay = Math.max(0, Math.min(TOTAL_WEEKS * 7 - 1, absoluteDay));
+  selectedWeek = Math.floor(absoluteDay / 7) + 1;
+  selectedDay = (absoluteDay % 7) + 1;
+  renderDaily();
 }
 
 for (let week = 1; week <= TOTAL_WEEKS; week += 1) {
@@ -176,26 +258,43 @@ for (let week = 1; week <= TOTAL_WEEKS; week += 1) {
   weekSelect.append(option);
 }
 
-weekSelect.value = String(initialWeek());
-weekSelect.addEventListener("change", () => render(Number(weekSelect.value)));
+$("#previousDay").addEventListener("click", () => goAdjacentDay(-1));
+$("#nextDay").addEventListener("click", () => goAdjacentDay(1));
+$("#goToday").addEventListener("click", () => {
+  const currentWeek = calendarWeek();
+  selectedWeek = Math.max(1, Math.min(TOTAL_WEEKS, currentWeek));
+  selectedDay = currentWeek >= 1 && currentWeek <= TOTAL_WEEKS ? dayNumber(new Date()) : (currentWeek < 1 ? 1 : 7);
+  renderDaily();
+});
+
+$("#openWeekMenu").addEventListener("click", () => {
+  menuWeek = selectedWeek;
+  renderWeekMenu();
+  weekDialog.showModal();
+});
+weekSelect.addEventListener("change", () => {
+  menuWeek = Number(weekSelect.value);
+  renderWeekMenu();
+});
 $("#previousWeek").addEventListener("click", () => {
-  weekSelect.value = String(Math.max(1, Number(weekSelect.value) - 1));
-  render(Number(weekSelect.value));
-  window.scrollTo({ top: 0, behavior: "smooth" });
+  menuWeek = Math.max(1, menuWeek - 1);
+  renderWeekMenu();
 });
 $("#nextWeek").addEventListener("click", () => {
-  weekSelect.value = String(Math.min(TOTAL_WEEKS, Number(weekSelect.value) + 1));
-  render(Number(weekSelect.value));
-  window.scrollTo({ top: 0, behavior: "smooth" });
+  menuWeek = Math.min(TOTAL_WEEKS, menuWeek + 1);
+  renderWeekMenu();
 });
 
 const installDialog = $("#installDialog");
 $("#installButton").addEventListener("click", () => installDialog.showModal());
-installDialog.addEventListener("click", (event) => {
-  if (event.target === installDialog) installDialog.close();
-});
+[weekDialog, installDialog].forEach((dialog) => dialog.addEventListener("click", (event) => {
+  if (event.target === dialog) dialog.close();
+}));
 
-render(Number(weekSelect.value));
+renderDaily();
+window.setInterval(() => {
+  if (sameDay(selectedDate(), new Date())) renderDaily();
+}, 30000);
 
 const offlineStatus = $("#offlineStatus");
 

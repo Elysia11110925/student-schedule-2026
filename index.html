@@ -3,11 +3,11 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="theme-color" content="#f7f8fc" />
+    <meta name="theme-color" content="#050506" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="我的课表" />
-    <meta name="description" content="按周查看课程、时间和教室的离线课表应用" />
+    <meta name="description" content="按天查看课程、自动标记已结束课程的离线课表" />
     <link rel="manifest" href="manifest.webmanifest" />
     <link rel="apple-touch-icon" href="icons/icon-180.png" />
     <link rel="icon" href="icons/icon.svg" type="image/svg+xml" />
@@ -19,15 +19,76 @@
       <header class="topbar">
         <div class="brand-row">
           <div>
-            <p class="eyebrow">2026 秋季学期</p>
-            <h1>我的课表</h1>
+            <p class="eyebrow">2026 AUTUMN · 16 WEEKS</p>
+            <h1>今日课表</h1>
           </div>
-          <button class="icon-button" id="installButton" type="button" aria-label="安装说明">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 15v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4" /></svg>
-          </button>
+          <div class="toolbar-actions">
+            <button class="icon-button" id="openWeekMenu" type="button" aria-label="打开周课表">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3v3m12-3v3M4 9h16M5 5h14a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z" /></svg>
+            </button>
+            <button class="icon-button" id="installButton" type="button" aria-label="安装说明">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 15v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4" /></svg>
+            </button>
+          </div>
         </div>
         <p id="offlineStatus" class="offline-status is-preparing" role="status" aria-live="polite">正在准备离线使用…</p>
+      </header>
 
+      <main>
+        <section class="day-hero" aria-labelledby="dayTitle">
+          <div class="day-heading">
+            <div>
+              <p id="dayDate" class="day-date"></p>
+              <h2 id="dayTitle"></h2>
+              <p id="dayContext" class="day-context"></p>
+            </div>
+            <div class="progress-orb" aria-label="当天课程完成进度">
+              <strong id="progressValue">0/0</strong>
+              <span>已结束</span>
+            </div>
+          </div>
+          <div class="progress-track" aria-hidden="true"><span id="progressBar"></span></div>
+        </section>
+
+        <div class="day-controls" aria-label="切换日期">
+          <button id="previousDay" type="button" aria-label="前一天">‹</button>
+          <button id="goToday" class="today-button" type="button">今天</button>
+          <button id="nextDay" type="button" aria-label="后一天">›</button>
+        </div>
+
+        <section class="todo-section" aria-labelledby="todoTitle">
+          <div class="section-heading">
+            <div>
+              <p class="section-kicker">DAILY TODO</p>
+              <h2 id="todoTitle">当天课程</h2>
+            </div>
+            <span id="courseCount" class="count-badge"></span>
+          </div>
+          <div id="schedule" class="todo-list" aria-live="polite"></div>
+        </section>
+
+        <section class="floating-courses" aria-labelledby="floatingTitle">
+          <div class="section-heading">
+            <div>
+              <p class="section-kicker">FLEXIBLE</p>
+              <h2 id="floatingTitle">本周自主安排</h2>
+            </div>
+          </div>
+          <div id="floatingCourseList"></div>
+        </section>
+      </main>
+    </div>
+
+    <dialog id="weekDialog" class="sheet-dialog">
+      <form method="dialog" class="sheet-content">
+        <div class="sheet-handle" aria-hidden="true"></div>
+        <div class="sheet-heading">
+          <div>
+            <p class="section-kicker">WEEK VIEW</p>
+            <h2>选择周次与日期</h2>
+          </div>
+          <button class="dialog-close" aria-label="关闭">×</button>
+        </div>
         <div class="week-picker" aria-label="选择周次">
           <button id="previousWeek" type="button" aria-label="上一周">‹</button>
           <label>
@@ -37,25 +98,9 @@
           <button id="nextWeek" type="button" aria-label="下一周">›</button>
         </div>
         <p id="weekDates" class="week-dates"></p>
-      </header>
-
-      <nav id="dayNav" class="day-nav" aria-label="星期导航"></nav>
-
-      <main>
-        <section id="statusCard" class="status-card" hidden></section>
-        <div id="schedule" class="schedule" aria-live="polite"></div>
-
-        <section class="floating-courses" aria-labelledby="floatingTitle">
-          <div class="section-heading">
-            <div>
-              <p class="section-kicker">线上 / 不排时间</p>
-              <h2 id="floatingTitle">自主安排课程</h2>
-            </div>
-          </div>
-          <div id="floatingCourseList"></div>
-        </section>
-      </main>
-    </div>
+        <div id="weekMenuDays" class="week-menu-days"></div>
+      </form>
+    </dialog>
 
     <dialog id="installDialog">
       <form method="dialog">
@@ -65,10 +110,9 @@
         <ol>
           <li>用 Safari 打开本课表的网址。</li>
           <li>等待页面顶部显示“离线可用”。</li>
-          <li>点击底部工具栏的“分享”按钮。</li>
-          <li>选择“添加到主屏幕”，再点击“添加”。</li>
+          <li>点击“分享”，选择“添加到主屏幕”。</li>
+          <li>保持联网，从主屏幕启动一次并等待离线就绪。</li>
         </ol>
-        <p>安装后可像普通 App 一样打开；访问过一次后也可离线查看。</p>
         <button class="primary-button" value="close">知道了</button>
       </form>
     </dialog>

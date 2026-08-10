@@ -1,13 +1,13 @@
 {
   "name": "我的课程表",
   "short_name": "我的课表",
-  "description": "按周查看课程、时间和教室",
+  "description": "按天查看课程并自动标记已结束课程",
   "lang": "zh-CN",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
-  "background_color": "#f7f8fc",
-  "theme_color": "#f7f8fc",
+  "background_color": "#050506",
+  "theme_color": "#050506",
   "icons": [
     { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
     { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
