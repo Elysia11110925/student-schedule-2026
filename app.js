@@ -43,12 +43,15 @@ const floatingCourses = [
 
 const weekdays = ["星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日"];
 const shortWeekdays = ["一", "二", "三", "四", "五", "六", "日"];
+const CUSTOM_ITEMS_KEY = "schedule-custom-items-v1";
 
 const $ = (selector) => document.querySelector(selector);
 const schedule = $("#schedule");
 const floatingCourseList = $("#floatingCourseList");
 const weekSelect = $("#weekSelect");
 const weekDialog = $("#weekDialog");
+const itemDialog = $("#itemDialog");
+const itemForm = $("#itemForm");
 
 const atMidnight = (date) => new Date(date.getFullYear(), date.getMonth(), date.getDate());
 const addDays = (date, days) => new Date(date.getFullYear(), date.getMonth(), date.getDate() + days);
@@ -93,6 +96,23 @@ const initial = initialSelection();
 let selectedWeek = initial.week;
 let selectedDay = initial.day;
 let menuWeek = selectedWeek;
+let itemDateBeingEdited = "";
+
+function loadCustomItems() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(CUSTOM_ITEMS_KEY) || "[]");
+    return Array.isArray(saved) ? saved.filter((item) => item && item.id && item.date && item.title && item.start && item.end) : [];
+  } catch (error) {
+    console.warn("临时事项读取失败", error);
+    return [];
+  }
+}
+
+let customItems = loadCustomItems();
+
+function saveCustomItems() {
+  localStorage.setItem(CUSTOM_ITEMS_KEY, JSON.stringify(customItems));
+}
 
 function selectedDate() {
   return addDays(weekStart(selectedWeek), selectedDay - 1);
@@ -104,13 +124,17 @@ function coursesFor(week, day) {
     .sort((a, b) => a.period - b.period);
 }
 
+function customItemsFor(date) {
+  const dateKey = isoDate(date);
+  return customItems.filter((item) => item.date === dateKey);
+}
+
 function dateAtTime(date, time) {
   const [hours, minutes] = time.split(":").map(Number);
   return new Date(date.getFullYear(), date.getMonth(), date.getDate(), hours, minutes);
 }
 
-function timingState(course, date, now = new Date()) {
-  const [startText, endText] = periods[course.period].time.split("–");
+function timingStateForTimes(startText, endText, date, now = new Date()) {
   const today = atMidnight(now);
   const target = atMidnight(date);
   if (target < today) return "done";
@@ -120,10 +144,19 @@ function timingState(course, date, now = new Date()) {
   return "upcoming";
 }
 
+function timingState(course, date, now = new Date()) {
+  const [startText, endText] = periods[course.period].time.split("–");
+  return timingStateForTimes(startText, endText, date, now);
+}
+
+function customItemTimingState(item, date, now = new Date()) {
+  return timingStateForTimes(item.start, item.end, date, now);
+}
+
 function stateLabel(state) {
   if (state === "done") return "已结束";
   if (state === "active") return "进行中";
-  return "待上课";
+  return "待开始";
 }
 
 function createCourseTask(course, date) {
@@ -131,6 +164,8 @@ function createCourseTask(course, date) {
   const state = timingState(course, date);
   const article = document.createElement("article");
   article.className = `course-task is-${state}`;
+  article.dataset.startTime = period.time.split("–")[0];
+  article.dataset.kind = "course";
   article.innerHTML = `
     <div class="task-check" aria-hidden="true">${state === "done" ? "✓" : ""}</div>
     <div class="task-content">
@@ -146,6 +181,59 @@ function createCourseTask(course, date) {
       </div>
     </div>`;
   return article;
+}
+
+function escapeHTML(value) {
+  return String(value).replace(/[&<>'"]/g, (character) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    "'": "&#39;",
+    '"': "&quot;",
+  }[character]));
+}
+
+function createCustomTask(item, date) {
+  const state = customItemTimingState(item, date);
+  const article = document.createElement("article");
+  article.className = `course-task custom-task is-${state}`;
+  article.dataset.startTime = item.start;
+  article.dataset.kind = "custom";
+  article.innerHTML = `
+    <div class="task-check" aria-hidden="true">${state === "done" ? "✓" : ""}</div>
+    <div class="task-content">
+      <div class="task-topline">
+        <time>${escapeHTML(item.start)}–${escapeHTML(item.end)}</time>
+        <div class="task-actions">
+          <span class="task-state">${stateLabel(state)}</span>
+          <button class="task-delete" type="button" aria-label="删除${escapeHTML(item.title)}" title="删除事项">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13M10 11v5m4-5v5" /></svg>
+          </button>
+        </div>
+      </div>
+      <h3>${escapeHTML(item.title)}</h3>
+      <p class="task-period">临时事项</p>
+      <div class="task-meta">
+        <span>${item.note ? escapeHTML(item.note) : "个人安排"}</span>
+      </div>
+    </div>`;
+  article.querySelector(".task-delete").addEventListener("click", () => deleteCustomItem(item));
+  return article;
+}
+
+function dailyEntries(week, day, date) {
+  const courseEntries = coursesFor(week, day).map((course) => {
+    const [start, end] = periods[course.period].time.split("–");
+    return { kind: "course", course, start, end };
+  });
+  const itemEntries = customItemsFor(date).map((item) => ({
+    kind: "custom",
+    item,
+    start: item.start,
+    end: item.end,
+  }));
+  return [...courseEntries, ...itemEntries].sort((a, b) =>
+    a.start.localeCompare(b.start) || a.end.localeCompare(b.end) || a.kind.localeCompare(b.kind));
 }
 
 function relativeDayLabel(date) {
@@ -184,24 +272,30 @@ function renderDaily() {
   localStorage.setItem("schedule-day", String(selectedDay));
 
   const date = selectedDate();
-  const dailyCourses = coursesFor(selectedWeek, selectedDay);
-  const completed = dailyCourses.filter((course) => timingState(course, date) === "done").length;
-  const active = dailyCourses.some((course) => timingState(course, date) === "active");
+  const entries = dailyEntries(selectedWeek, selectedDay, date);
+  const completed = entries.filter((entry) => (entry.kind === "course"
+    ? timingState(entry.course, date)
+    : customItemTimingState(entry.item, date)) === "done").length;
+  const active = entries.some((entry) => (entry.kind === "course"
+    ? timingState(entry.course, date)
+    : customItemTimingState(entry.item, date)) === "active");
 
   $("#dayDate").textContent = `${date.getFullYear()}年 ${formatDate(date)} · ${relativeDayLabel(date)}`;
   $("#dayTitle").textContent = weekdays[selectedDay - 1];
-  $("#dayContext").textContent = active ? "现在有课程正在进行" : dailyCourses.length ? "按时间自动更新完成状态" : "给自己留一点自由时间";
-  $("#progressValue").textContent = `${completed}/${dailyCourses.length}`;
-  $("#progressBar").style.width = `${dailyCourses.length ? (completed / dailyCourses.length) * 100 : 0}%`;
-  $("#courseCount").textContent = `${dailyCourses.length} 节课`;
+  $("#dayContext").textContent = active ? "现在有安排正在进行" : entries.length ? "按时间自动更新完成状态" : "给自己留一点自由时间";
+  $("#progressValue").textContent = `${completed}/${entries.length}`;
+  $("#progressBar").style.width = `${entries.length ? (completed / entries.length) * 100 : 0}%`;
+  $("#courseCount").textContent = `${entries.length} 项`;
 
   schedule.replaceChildren();
-  if (dailyCourses.length) {
-    dailyCourses.forEach((course) => schedule.append(createCourseTask(course, date)));
+  if (entries.length) {
+    entries.forEach((entry) => schedule.append(entry.kind === "course"
+      ? createCourseTask(entry.course, date)
+      : createCustomTask(entry.item, date)));
   } else {
     const empty = document.createElement("div");
     empty.className = "empty-card";
-    empty.innerHTML = `<span>○</span><h3>今天没有课</h3><p>可以休息，也可以从周课表里查看其他日期。</p>`;
+    empty.innerHTML = `<span>○</span><h3>今天没有安排</h3><p>可以休息，也可以添加一件临时事项。</p>`;
     schedule.append(empty);
   }
 
@@ -221,14 +315,20 @@ function renderWeekMenu() {
     const day = index + 1;
     const date = addDays(start, index);
     const dailyCourses = coursesFor(menuWeek, day);
+    const dailyItems = customItemsFor(date);
+    const totalEntries = dailyCourses.length + dailyItems.length;
     const button = document.createElement("button");
     button.type = "button";
     button.className = `week-day-option${menuWeek === selectedWeek && day === selectedDay ? " is-selected" : ""}`;
-    const summary = dailyCourses.length ? dailyCourses.map((course) => course.name).join(" · ") : "无课程";
+    const summaryParts = [
+      ...dailyCourses.map((course) => course.name),
+      ...dailyItems.map((item) => item.title),
+    ];
+    const summary = summaryParts.length ? summaryParts.join(" · ") : "无安排";
     button.innerHTML = `
       <span class="week-day-date"><small>周${shortWeekdays[index]}</small><strong>${date.getDate()}</strong></span>
       <span class="week-day-summary"><strong>${weekday}</strong><small>${summary}</small></span>
-      <span class="week-day-count">${dailyCourses.length}</span>`;
+      <span class="week-day-count">${totalEntries}</span>`;
     button.addEventListener("click", () => {
       selectedWeek = menuWeek;
       selectedDay = day;
@@ -285,9 +385,81 @@ $("#nextWeek").addEventListener("click", () => {
   renderWeekMenu();
 });
 
+function timeValue(totalMinutes) {
+  const safeMinutes = Math.max(0, Math.min(1439, totalMinutes));
+  const hours = String(Math.floor(safeMinutes / 60)).padStart(2, "0");
+  const minutes = String(safeMinutes % 60).padStart(2, "0");
+  return `${hours}:${minutes}`;
+}
+
+function defaultItemTimes(date) {
+  if (!sameDay(date, new Date())) return { start: "09:00", end: "10:00" };
+  const now = new Date();
+  const rounded = Math.ceil((now.getHours() * 60 + now.getMinutes()) / 15) * 15;
+  const startMinutes = Math.min(rounded, 22 * 60 + 45);
+  return { start: timeValue(startMinutes), end: timeValue(startMinutes + 60) };
+}
+
+function openItemDialog() {
+  const date = selectedDate();
+  const defaults = defaultItemTimes(date);
+  itemDateBeingEdited = isoDate(date);
+  itemForm.reset();
+  $("#itemDateLabel").textContent = `${date.getFullYear()}年${formatDate(date)} · ${weekdays[selectedDay - 1]}`;
+  $("#itemStart").value = defaults.start;
+  $("#itemEnd").value = defaults.end;
+  $("#itemFormError").textContent = "";
+  itemDialog.showModal();
+  window.setTimeout(() => $("#itemTitle").focus(), 80);
+}
+
+function deleteCustomItem(item) {
+  if (!window.confirm(`删除“${item.title}”？`)) return;
+  customItems = customItems.filter((savedItem) => savedItem.id !== item.id);
+  saveCustomItems();
+  renderDaily();
+}
+
+$("#addItemButton").addEventListener("click", openItemDialog);
+$("#closeItemDialog").addEventListener("click", () => itemDialog.close());
+itemForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const title = $("#itemTitle").value.trim();
+  const start = $("#itemStart").value;
+  const end = $("#itemEnd").value;
+  const note = $("#itemNote").value.trim();
+  const error = $("#itemFormError");
+
+  if (!title || !start || !end) {
+    error.textContent = "请填写事项名称和时间。";
+    return;
+  }
+  if (end <= start) {
+    error.textContent = "结束时间需要晚于开始时间。";
+    $("#itemEnd").focus();
+    return;
+  }
+
+  customItems.push({
+    id: globalThis.crypto?.randomUUID?.() || `item-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    date: itemDateBeingEdited,
+    title,
+    start,
+    end,
+    note,
+    createdAt: new Date().toISOString(),
+  });
+  saveCustomItems();
+  itemDialog.close();
+  renderDaily();
+});
+[$("#itemTitle"), $("#itemStart"), $("#itemEnd")].forEach((field) => field.addEventListener("input", () => {
+  $("#itemFormError").textContent = "";
+}));
+
 const installDialog = $("#installDialog");
 $("#installButton").addEventListener("click", () => installDialog.showModal());
-[weekDialog, installDialog].forEach((dialog) => dialog.addEventListener("click", (event) => {
+[weekDialog, itemDialog, installDialog].forEach((dialog) => dialog.addEventListener("click", (event) => {
   if (event.target === dialog) dialog.close();
 }));
 

@@ -1,7 +1,7 @@
 {
   "name": "我的课程表",
   "short_name": "我的课表",
-  "description": "按天查看课程并自动标记已结束课程",
+  "description": "按天查看课程与临时事项，并自动标记已结束的安排",
   "lang": "zh-CN",
   "start_url": "./",
   "scope": "./",

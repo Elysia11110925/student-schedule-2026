@@ -31,6 +31,7 @@ body {
 button, select { font: inherit; }
 button { -webkit-tap-highlight-color: transparent; }
 button:disabled { cursor: default; opacity: 0.28; }
+input { font: inherit; }
 h1, h2, h3, p { margin-top: 0; }
 
 .app-shell {
@@ -157,6 +158,21 @@ main { padding: 7px 20px 0; }
   color: var(--muted);
   font-size: 11px;
 }
+.section-actions { display: flex; align-items: center; gap: 8px; }
+.add-item-button {
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 11px;
+  border: 1px solid rgba(199, 255, 61, 0.32);
+  border-radius: 11px;
+  background: rgba(199, 255, 61, 0.09);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 800;
+}
+.add-item-button span { font-size: 16px; line-height: 1; }
 .todo-list { display: grid; gap: 10px; }
 
 .course-task {
@@ -184,6 +200,7 @@ main { padding: 7px 20px 0; }
 }
 .task-topline { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .task-topline time { color: var(--accent); font-size: 12px; font-weight: 800; letter-spacing: 0.02em; }
+.task-actions { display: flex; align-items: center; gap: 6px; }
 .task-state {
   padding: 4px 7px;
   border-radius: 999px;
@@ -197,6 +214,43 @@ main { padding: 7px 20px 0; }
 .task-meta { display: flex; flex-wrap: wrap; gap: 7px; color: #b7b7bd; font-size: 12px; }
 .task-meta span { padding: 5px 8px; border-radius: 8px; background: #1b1b1e; }
 .task-room { color: #d7d7da; }
+
+.custom-task { border-color: rgba(125, 211, 252, 0.2); }
+.custom-task::before {
+  content: "";
+  position: absolute;
+  inset: 16px auto 16px 0;
+  width: 3px;
+  border-radius: 0 99px 99px 0;
+  background: #7dd3fc;
+}
+.custom-task .task-topline time { color: #7dd3fc; }
+.custom-task.is-active {
+  border-color: rgba(125, 211, 252, 0.48);
+  background: linear-gradient(120deg, rgba(125, 211, 252, 0.1), transparent 65%), var(--surface);
+}
+.custom-task.is-active .task-state { background: #7dd3fc; color: #06141b; }
+.custom-task.is-active .task-check { border-color: #7dd3fc; box-shadow: 0 0 0 5px rgba(125, 211, 252, 0.08); }
+.custom-task.is-done .task-check { border-color: #7dd3fc; background: #7dd3fc; }
+.task-delete {
+  width: 27px;
+  height: 27px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: #222226;
+  color: #85858d;
+}
+.task-delete svg {
+  width: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
 
 .course-task.is-active {
   border-color: rgba(199, 255, 61, 0.42);
@@ -281,6 +335,43 @@ dialog ol { padding-left: 21px; color: #c4c4c8; font-size: 13px; line-height: 1.
   color: var(--accent-ink);
   font-weight: 800;
 }
+
+.item-dialog form { padding-top: 24px; }
+.item-dialog .dialog-close { position: absolute; top: 18px; right: 18px; }
+.item-dialog-icon {
+  width: 45px;
+  height: 45px;
+  display: grid;
+  place-items: center;
+  margin-bottom: 19px;
+  border-radius: 14px;
+  background: #7dd3fc;
+  color: #06141b;
+  font-size: 26px;
+  font-weight: 500;
+}
+.item-date-label { margin: 8px 0 22px; color: var(--muted); font-size: 12px; }
+.form-field { display: grid; gap: 8px; margin-top: 15px; }
+.form-field > span { color: #c9c9ce; font-size: 11px; font-weight: 700; }
+.form-field small { color: var(--muted); font-size: 9px; font-weight: 500; }
+.form-field input {
+  width: 100%;
+  height: 48px;
+  min-width: 0;
+  padding: 0 13px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  outline: none;
+  background: var(--surface-raised);
+  color: var(--ink);
+  color-scheme: dark;
+  font-size: 14px;
+}
+.form-field input:focus { border-color: rgba(125, 211, 252, 0.62); box-shadow: 0 0 0 3px rgba(125, 211, 252, 0.08); }
+.form-field input::placeholder { color: #66666d; }
+.time-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 11px; }
+.form-error { min-height: 17px; margin: 10px 0 0; color: #ff8585; font-size: 11px; }
+.item-dialog .primary-button { margin-top: 4px; background: #7dd3fc; color: #06141b; }
 
 .sheet-dialog {
   width: min(100%, 680px);

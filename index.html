@@ -7,7 +7,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="我的课表" />
-    <meta name="description" content="按天查看课程、自动标记已结束课程的离线课表" />
+    <meta name="description" content="按天查看课程与临时事项、自动标记已结束安排的离线课表" />
     <link rel="manifest" href="manifest.webmanifest" />
     <link rel="apple-touch-icon" href="icons/icon-180.png" />
     <link rel="icon" href="icons/icon.svg" type="image/svg+xml" />
@@ -60,9 +60,14 @@
           <div class="section-heading">
             <div>
               <p class="section-kicker">DAILY TODO</p>
-              <h2 id="todoTitle">当天课程</h2>
+              <h2 id="todoTitle">当天安排</h2>
             </div>
-            <span id="courseCount" class="count-badge"></span>
+            <div class="section-actions">
+              <span id="courseCount" class="count-badge"></span>
+              <button id="addItemButton" class="add-item-button" type="button">
+                <span aria-hidden="true">＋</span> 添加事项
+              </button>
+            </div>
           </div>
           <div id="schedule" class="todo-list" aria-live="polite"></div>
         </section>
@@ -99,6 +104,37 @@
         </div>
         <p id="weekDates" class="week-dates"></p>
         <div id="weekMenuDays" class="week-menu-days"></div>
+      </form>
+    </dialog>
+
+    <dialog id="itemDialog" class="item-dialog">
+      <form id="itemForm">
+        <button class="dialog-close" type="button" id="closeItemDialog" aria-label="关闭">×</button>
+        <div class="item-dialog-icon" aria-hidden="true">＋</div>
+        <p class="section-kicker">NEW TODO</p>
+        <h2>添加临时事项</h2>
+        <p id="itemDateLabel" class="item-date-label"></p>
+
+        <label class="form-field">
+          <span>事项名称</span>
+          <input id="itemTitle" name="title" type="text" maxlength="40" autocomplete="off" placeholder="例如：取快递" required />
+        </label>
+        <div class="time-fields">
+          <label class="form-field">
+            <span>开始时间</span>
+            <input id="itemStart" name="start" type="time" required />
+          </label>
+          <label class="form-field">
+            <span>结束时间</span>
+            <input id="itemEnd" name="end" type="time" required />
+          </label>
+        </div>
+        <label class="form-field">
+          <span>备注 <small>选填</small></span>
+          <input id="itemNote" name="note" type="text" maxlength="60" autocomplete="off" placeholder="地点、提醒或其他信息" />
+        </label>
+        <p id="itemFormError" class="form-error" role="alert"></p>
+        <button class="primary-button" type="submit">添加到当天安排</button>
       </form>
     </dialog>
 
