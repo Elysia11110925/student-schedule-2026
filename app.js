@@ -23,6 +23,7 @@ const courses = [
   { day: 5, period: 1, name: "概率论与数理统计A", teacher: "赵东红", room: "逸夫楼604", from: 9, to: 16 },
   { day: 1, period: 2, name: "毛泽东思想和中国特色社会主义理论体系概论", teacher: "李芳", room: "逸夫楼706", from: 1, to: 16 },
   { day: 2, period: 2, name: "工科物理BI", teacher: "王凤平", room: "逸夫楼604", from: 1, to: 16 },
+  { day: 3, period: 2, name: "体育III", teacher: "宋一涛 · 游泳", room: "游泳馆", from: 1, to: 16 },
   { day: 4, period: 2, name: "工科物理BI", teacher: "王凤平", room: "逸夫楼604", from: 1, to: 16 },
   { day: 5, period: 2, name: "英汉基础笔译", teacher: "卢宁", room: "信息楼B619", from: 1, to: 16 },
   { day: 1, period: 3, name: "人工智能辅助翻译", teacher: "Nick Lambson", room: "信息楼B619", from: 1, to: 16 },
