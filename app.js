@@ -1,5 +1,8 @@
 const SEMESTER_START = new Date(2026, 8, 7);
 const TOTAL_WEEKS = 16;
+// This seven-day break pauses teaching weeks, but personal items keep their real dates.
+const HOLIDAY_START = new Date(2026, 9, 1);
+const HOLIDAY_DAYS = 7;
 
 const periods = {
   1: { label: "第1–2节", time: "08:00–09:35" },
@@ -64,39 +67,65 @@ const isoDate = (date) => {
   return `${year}-${month}-${day}`;
 };
 const sameDay = (a, b) => a && b && isoDate(a) === isoDate(b);
+const dayIndex = (date) => Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) / 86400000;
+const HOLIDAY_END = addDays(HOLIDAY_START, HOLIDAY_DAYS);
 
-function calendarWeek(date = new Date()) {
-  const diffDays = Math.floor((atMidnight(date) - SEMESTER_START) / 86400000);
-  return Math.floor(diffDays / 7) + 1;
+function isHoliday(date) {
+  return dayIndex(date) >= dayIndex(HOLIDAY_START) && dayIndex(date) < dayIndex(HOLIDAY_END);
 }
 
-function weekStart(week) {
-  return addDays(SEMESTER_START, (week - 1) * 7);
+function teachingWeek(date = new Date()) {
+  if (isHoliday(date)) return null;
+  const elapsedDays = dayIndex(date) - dayIndex(SEMESTER_START);
+  const excludedDays = dayIndex(date) >= dayIndex(HOLIDAY_END) ? HOLIDAY_DAYS : 0;
+  return Math.floor((elapsedDays - excludedDays) / 7) + 1;
 }
+
+function teachingDate(week, day = 1) {
+  const date = addDays(SEMESTER_START, (week - 1) * 7 + day - 1);
+  return date >= HOLIDAY_START ? addDays(date, HOLIDAY_DAYS) : date;
+}
+
+const SEMESTER_END = teachingDate(TOTAL_WEEKS, 7);
+const menuPeriods = Array.from({ length: TOTAL_WEEKS }, (_, index) => ({
+  id: String(index + 1),
+  label: `第 ${index + 1} 教学周`,
+  dates: Array.from({ length: 7 }, (_, day) => teachingDate(index + 1, day + 1)),
+}));
+menuPeriods.push({
+  id: "holiday",
+  label: "国庆假期 · 不计教学周",
+  dates: Array.from({ length: HOLIDAY_DAYS }, (_, day) => addDays(HOLIDAY_START, day)),
+});
+menuPeriods.sort((a, b) => a.dates[0] - b.dates[0]);
 
 function dayNumber(date) {
   return ((date.getDay() + 6) % 7) + 1;
 }
 
 function initialSelection() {
-  const now = new Date();
-  const currentWeek = calendarWeek(now);
-  if (currentWeek >= 1 && currentWeek <= TOTAL_WEEKS) {
-    return { week: currentWeek, day: dayNumber(now) };
+  const today = atMidnight(new Date());
+  if (today >= SEMESTER_START && today <= SEMESTER_END) return today;
+
+  const savedDateText = localStorage.getItem("schedule-date");
+  if (/^\d{4}-\d{2}-\d{2}$/.test(savedDateText || "")) {
+    const [year, month, day] = savedDateText.split("-").map(Number);
+    const date = new Date(year, month - 1, day);
+    if (isoDate(date) === savedDateText && date >= SEMESTER_START && date <= SEMESTER_END) return date;
   }
 
+  // Older versions saved a calendar week. Migrate it without shifting the real date.
   const savedWeek = Number(localStorage.getItem("schedule-week"));
   const savedDay = Number(localStorage.getItem("schedule-day"));
-  return {
-    week: savedWeek >= 1 && savedWeek <= TOTAL_WEEKS ? savedWeek : (currentWeek < 1 ? 1 : TOTAL_WEEKS),
-    day: savedDay >= 1 && savedDay <= 7 ? savedDay : 1,
-  };
+  if (Number.isInteger(savedWeek) && savedWeek >= 1 && savedWeek <= TOTAL_WEEKS &&
+      Number.isInteger(savedDay) && savedDay >= 1 && savedDay <= 7) {
+    return addDays(SEMESTER_START, (savedWeek - 1) * 7 + savedDay - 1);
+  }
+  return today < SEMESTER_START ? SEMESTER_START : SEMESTER_END;
 }
 
-const initial = initialSelection();
-let selectedWeek = initial.week;
-let selectedDay = initial.day;
-let menuWeek = selectedWeek;
+let selectedDayDate = initialSelection();
+let menuWeek = isHoliday(selectedDayDate) ? "holiday" : String(teachingWeek(selectedDayDate));
 let itemDateBeingEdited = "";
 
 function loadCustomItems() {
@@ -116,10 +145,11 @@ function saveCustomItems() {
 }
 
 function selectedDate() {
-  return addDays(weekStart(selectedWeek), selectedDay - 1);
+  return selectedDayDate;
 }
 
 function coursesFor(week, day) {
+  if (week === null || week < 1 || week > TOTAL_WEEKS) return [];
   return courses
     .filter((course) => course.day === day && week >= course.from && week <= course.to)
     .sort((a, b) => a.period - b.period);
@@ -222,8 +252,8 @@ function createCustomTask(item, date) {
   return article;
 }
 
-function dailyEntries(week, day, date) {
-  const courseEntries = coursesFor(week, day).map((course) => {
+function dailyEntries(date) {
+  const courseEntries = coursesFor(teachingWeek(date), dayNumber(date)).map((course) => {
     const [start, end] = periods[course.period].time.split("–");
     return { kind: "course", course, start, end };
   });
@@ -238,20 +268,20 @@ function dailyEntries(week, day, date) {
 }
 
 function relativeDayLabel(date) {
-  const offset = Math.round((atMidnight(date) - atMidnight(new Date())) / 86400000);
+  const offset = dayIndex(date) - dayIndex(new Date());
   if (offset === 0) return "今天";
   if (offset === -1) return "昨天";
   if (offset === 1) return "明天";
-  return `第 ${selectedWeek} 周`;
+  return "";
 }
 
 function renderFloatingCourses(week) {
   floatingCourseList.replaceChildren();
-  const visible = floatingCourses.filter((course) => !course.from || (week >= course.from && week <= course.to));
+  const visible = week === null ? [] : floatingCourses.filter((course) => !course.from || (week >= course.from && week <= course.to));
   if (!visible.length) {
     const empty = document.createElement("div");
     empty.className = "empty-card";
-    empty.textContent = "本周没有自主安排课程";
+    empty.textContent = week === null ? "国庆假期不计入教学周" : "本周没有自主安排课程";
     floatingCourseList.append(empty);
     return;
   }
@@ -264,16 +294,15 @@ function renderFloatingCourses(week) {
 }
 
 function updateDayControls() {
-  $("#previousDay").disabled = selectedWeek === 1 && selectedDay === 1;
-  $("#nextDay").disabled = selectedWeek === TOTAL_WEEKS && selectedDay === 7;
+  $("#previousDay").disabled = sameDay(selectedDate(), SEMESTER_START);
+  $("#nextDay").disabled = sameDay(selectedDate(), SEMESTER_END);
 }
 
 function renderDaily() {
-  localStorage.setItem("schedule-week", String(selectedWeek));
-  localStorage.setItem("schedule-day", String(selectedDay));
-
   const date = selectedDate();
-  const entries = dailyEntries(selectedWeek, selectedDay, date);
+  localStorage.setItem("schedule-date", isoDate(date));
+  const week = teachingWeek(date);
+  const entries = dailyEntries(date);
   const completed = entries.filter((entry) => (entry.kind === "course"
     ? timingState(entry.course, date)
     : customItemTimingState(entry.item, date)) === "done").length;
@@ -281,8 +310,9 @@ function renderDaily() {
     ? timingState(entry.course, date)
     : customItemTimingState(entry.item, date)) === "active");
 
-  $("#dayDate").textContent = `${date.getFullYear()}年 ${formatDate(date)} · ${relativeDayLabel(date)}`;
-  $("#dayTitle").textContent = weekdays[selectedDay - 1];
+  const weekLabel = week === null ? "国庆假期 · 不计教学周" : `第 ${week} 教学周`;
+  $("#dayDate").textContent = [ `${date.getFullYear()}年 ${formatDate(date)}`, relativeDayLabel(date), weekLabel ].filter(Boolean).join(" · ");
+  $("#dayTitle").textContent = weekdays[dayNumber(date) - 1];
   $("#dayContext").textContent = active ? "现在有安排正在进行" : entries.length ? "按时间自动更新完成状态" : "给自己留一点自由时间";
   $("#progressValue").textContent = `${completed}/${entries.length}`;
   $("#progressBar").style.width = `${entries.length ? (completed / entries.length) * 100 : 0}%`;
@@ -296,43 +326,47 @@ function renderDaily() {
   } else {
     const empty = document.createElement("div");
     empty.className = "empty-card";
-    empty.innerHTML = `<span>○</span><h3>今天没有安排</h3><p>可以休息，也可以添加一件临时事项。</p>`;
+    empty.innerHTML = week === null
+      ? `<span>○</span><h3>国庆假期</h3><p>10月1–7日不计教学周，仍可添加个人事项。</p>`
+      : `<span>○</span><h3>今天没有安排</h3><p>可以休息，也可以添加一件临时事项。</p>`;
     schedule.append(empty);
   }
 
-  renderFloatingCourses(selectedWeek);
+  renderFloatingCourses(week);
   updateDayControls();
 }
 
 function renderWeekMenu() {
-  weekSelect.value = String(menuWeek);
-  const start = weekStart(menuWeek);
-  const end = addDays(start, 6);
-  $("#weekDates").textContent = `${start.getFullYear()}年 ${formatDate(start)} – ${formatDate(end)}`;
+  weekSelect.value = menuWeek;
+  const period = menuPeriods.find((entry) => entry.id === menuWeek);
+  const start = period.dates[0];
+  const end = period.dates[period.dates.length - 1];
+  const isSplitWeek = dayIndex(end) - dayIndex(start) > 6;
+  $("#weekDates").textContent = `${start.getFullYear()}年 ${formatDate(start)} – ${formatDate(end)}` +
+    (isSplitWeek ? "（跳过10月1–7日）" : period.id === "holiday" ? "（不计教学周）" : "");
   const list = $("#weekMenuDays");
   list.replaceChildren();
 
-  weekdays.forEach((weekday, index) => {
-    const day = index + 1;
-    const date = addDays(start, index);
-    const dailyCourses = coursesFor(menuWeek, day);
+  period.dates.forEach((date) => {
+    const day = dayNumber(date);
+    const weekday = weekdays[day - 1];
+    const dailyCourses = coursesFor(teachingWeek(date), day);
     const dailyItems = customItemsFor(date);
     const totalEntries = dailyCourses.length + dailyItems.length;
     const button = document.createElement("button");
     button.type = "button";
-    button.className = `week-day-option${menuWeek === selectedWeek && day === selectedDay ? " is-selected" : ""}`;
+    button.className = `week-day-option${sameDay(date, selectedDate()) ? " is-selected" : ""}`;
     const summaryParts = [
       ...dailyCourses.map((course) => course.name),
       ...dailyItems.map((item) => item.title),
     ];
     const summary = summaryParts.length ? summaryParts.join(" · ") : "无安排";
     button.innerHTML = `
-      <span class="week-day-date"><small>周${shortWeekdays[index]}</small><strong>${date.getDate()}</strong></span>
-      <span class="week-day-summary"><strong>${weekday}</strong><small>${summary}</small></span>
+      <span class="week-day-date"><small>周${shortWeekdays[day - 1]}</small><strong>${date.getDate()}</strong></span>
+      <span class="week-day-summary"><strong>${weekday} · ${formatDate(date)}</strong><small>${escapeHTML(summary)}</small></span>
       <span class="week-day-count">${totalEntries}</span>`;
     button.addEventListener("click", () => {
-      selectedWeek = menuWeek;
-      selectedDay = day;
+      selectedDayDate = date;
       renderDaily();
       weekDialog.close();
       window.scrollTo({ top: 0, behavior: "smooth" });
@@ -340,49 +374,48 @@ function renderWeekMenu() {
     list.append(button);
   });
 
-  $("#previousWeek").disabled = menuWeek === 1;
-  $("#nextWeek").disabled = menuWeek === TOTAL_WEEKS;
+  $("#previousWeek").disabled = menuWeek === menuPeriods[0].id;
+  $("#nextWeek").disabled = menuWeek === menuPeriods[menuPeriods.length - 1].id;
 }
 
 function goAdjacentDay(offset) {
-  let absoluteDay = (selectedWeek - 1) * 7 + (selectedDay - 1) + offset;
-  absoluteDay = Math.max(0, Math.min(TOTAL_WEEKS * 7 - 1, absoluteDay));
-  selectedWeek = Math.floor(absoluteDay / 7) + 1;
-  selectedDay = (absoluteDay % 7) + 1;
+  const date = addDays(selectedDate(), offset);
+  selectedDayDate = date < SEMESTER_START ? SEMESTER_START : date > SEMESTER_END ? SEMESTER_END : date;
   renderDaily();
 }
 
-for (let week = 1; week <= TOTAL_WEEKS; week += 1) {
+for (const period of menuPeriods) {
   const option = document.createElement("option");
-  option.value = week;
-  option.textContent = `第 ${week} 周`;
+  option.value = period.id;
+  option.textContent = period.label;
   weekSelect.append(option);
 }
 
 $("#previousDay").addEventListener("click", () => goAdjacentDay(-1));
 $("#nextDay").addEventListener("click", () => goAdjacentDay(1));
 $("#goToday").addEventListener("click", () => {
-  const currentWeek = calendarWeek();
-  selectedWeek = Math.max(1, Math.min(TOTAL_WEEKS, currentWeek));
-  selectedDay = currentWeek >= 1 && currentWeek <= TOTAL_WEEKS ? dayNumber(new Date()) : (currentWeek < 1 ? 1 : 7);
+  const today = atMidnight(new Date());
+  selectedDayDate = today < SEMESTER_START ? SEMESTER_START : today > SEMESTER_END ? SEMESTER_END : today;
   renderDaily();
 });
 
 $("#openWeekMenu").addEventListener("click", () => {
-  menuWeek = selectedWeek;
+  menuWeek = isHoliday(selectedDate()) ? "holiday" : String(teachingWeek(selectedDate()));
   renderWeekMenu();
   weekDialog.showModal();
 });
 weekSelect.addEventListener("change", () => {
-  menuWeek = Number(weekSelect.value);
+  menuWeek = weekSelect.value;
   renderWeekMenu();
 });
 $("#previousWeek").addEventListener("click", () => {
-  menuWeek = Math.max(1, menuWeek - 1);
+  const index = menuPeriods.findIndex((period) => period.id === menuWeek);
+  menuWeek = menuPeriods[Math.max(0, index - 1)].id;
   renderWeekMenu();
 });
 $("#nextWeek").addEventListener("click", () => {
-  menuWeek = Math.min(TOTAL_WEEKS, menuWeek + 1);
+  const index = menuPeriods.findIndex((period) => period.id === menuWeek);
+  menuWeek = menuPeriods[Math.min(menuPeriods.length - 1, index + 1)].id;
   renderWeekMenu();
 });
 
@@ -406,7 +439,7 @@ function openItemDialog() {
   const defaults = defaultItemTimes(date);
   itemDateBeingEdited = isoDate(date);
   itemForm.reset();
-  $("#itemDateLabel").textContent = `${date.getFullYear()}年${formatDate(date)} · ${weekdays[selectedDay - 1]}`;
+  $("#itemDateLabel").textContent = `${date.getFullYear()}年${formatDate(date)} · ${weekdays[dayNumber(date) - 1]}`;
   $("#itemStart").value = defaults.start;
   $("#itemEnd").value = defaults.end;
   $("#itemFormError").textContent = "";
@@ -479,7 +512,7 @@ function setOfflineStatus(text, state) {
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", async () => {
     try {
-      await navigator.serviceWorker.register("service-worker.js", { scope: "./" });
+      await navigator.serviceWorker.register("service-worker.js", { scope: "./", updateViaCache: "none" });
       await navigator.serviceWorker.ready;
 
       if (!navigator.serviceWorker.controller) {

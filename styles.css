@@ -7,9 +7,8 @@
   --ink: #f6f6f7;
   --muted: #8e8e96;
   --line: rgba(255, 255, 255, 0.09);
-  --accent: #c7ff3d;
-  --accent-ink: #111500;
-  --green: #73e3a1;
+  --accent: #ff9fc4;
+  --accent-ink: #2b1020;
   --orange: #ffb45f;
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Microsoft YaHei", sans-serif;
   background: var(--bg);
@@ -23,7 +22,7 @@ body {
   min-height: 100%;
   margin: 0;
   background:
-    radial-gradient(circle at 82% -8%, rgba(199, 255, 61, 0.12), transparent 28rem),
+    radial-gradient(circle at 82% -8%, rgba(255, 159, 196, 0.12), transparent 28rem),
     var(--bg);
   color: var(--ink);
 }
@@ -88,7 +87,7 @@ h2 { margin-bottom: 0; font-size: 21px; letter-spacing: -0.025em; }
   font-weight: 700;
 }
 .offline-status.is-preparing { color: var(--orange); }
-.offline-status.is-ready { color: var(--green); }
+.offline-status.is-ready { color: var(--accent); }
 .offline-status.is-error { color: #ff7474; }
 
 main { padding: 7px 20px 0; }
@@ -97,7 +96,7 @@ main { padding: 7px 20px 0; }
   border: 1px solid var(--line);
   border-radius: 27px;
   background:
-    linear-gradient(135deg, rgba(199, 255, 61, 0.1), transparent 52%),
+    linear-gradient(135deg, rgba(255, 159, 196, 0.1), transparent 52%),
     var(--surface);
   box-shadow: 0 22px 80px rgba(0, 0, 0, 0.3);
 }
@@ -110,9 +109,9 @@ main { padding: 7px 20px 0; }
   flex: 0 0 73px;
   display: grid;
   place-content: center;
-  border: 1px solid rgba(199, 255, 61, 0.25);
+  border: 1px solid rgba(255, 159, 196, 0.25);
   border-radius: 50%;
-  background: rgba(199, 255, 61, 0.08);
+  background: rgba(255, 159, 196, 0.08);
   text-align: center;
 }
 .progress-orb strong { color: var(--accent); font-size: 19px; line-height: 1.1; }
@@ -165,9 +164,9 @@ main { padding: 7px 20px 0; }
   align-items: center;
   gap: 4px;
   padding: 0 11px;
-  border: 1px solid rgba(199, 255, 61, 0.32);
+  border: 1px solid rgba(255, 159, 196, 0.32);
   border-radius: 11px;
-  background: rgba(199, 255, 61, 0.09);
+  background: rgba(255, 159, 196, 0.09);
   color: var(--accent);
   font-size: 11px;
   font-weight: 800;
@@ -253,11 +252,11 @@ main { padding: 7px 20px 0; }
 }
 
 .course-task.is-active {
-  border-color: rgba(199, 255, 61, 0.42);
-  background: linear-gradient(120deg, rgba(199, 255, 61, 0.09), transparent 65%), var(--surface);
+  border-color: rgba(255, 159, 196, 0.42);
+  background: linear-gradient(120deg, rgba(255, 159, 196, 0.09), transparent 65%), var(--surface);
 }
 .course-task.is-active .task-state { background: var(--accent); color: var(--accent-ink); }
-.course-task.is-active .task-check { border-color: var(--accent); box-shadow: 0 0 0 5px rgba(199, 255, 61, 0.08); }
+.course-task.is-active .task-check { border-color: var(--accent); box-shadow: 0 0 0 5px rgba(255, 159, 196, 0.08); }
 
 .course-task.is-done { opacity: 0.48; }
 .course-task.is-done .task-check { border-color: var(--accent); background: var(--accent); }
@@ -415,7 +414,7 @@ dialog ol { padding-left: 21px; color: #c4c4c8; font-size: 13px; line-height: 1.
   color: var(--ink);
   text-align: left;
 }
-.week-day-option.is-selected { border-color: rgba(199, 255, 61, 0.55); background: rgba(199, 255, 61, 0.07); }
+.week-day-option.is-selected { border-color: rgba(255, 159, 196, 0.55); background: rgba(255, 159, 196, 0.07); }
 .week-day-date { display: grid; place-items: center; }
 .week-day-date small { color: var(--muted); font-size: 9px; }
 .week-day-date strong { margin-top: 2px; font-size: 20px; }
